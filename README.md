@@ -44,7 +44,7 @@ generator = binggenerate()
 #not in async
 
 import asyncio
-loop = asyncio.get_event_loop()
+loop = asyncio.new_event_loop()
 filenames = loop.run_until_complete(generator.create("prompt", "authcookie"))
 
 #in async

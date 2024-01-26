@@ -132,5 +132,5 @@ if __name__ == "__main__":
     parser.add_argument("-auth", type=str, help="cookie value (_U) that authenticates requests (mandatory)")
     parser.add_argument("-v", action="store_true", help="verbose")
     args = parser.parse_args()
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
     loop.run_until_complete(binggenerate().create(args.prompt, args.auth, args.v))
