@@ -77,7 +77,7 @@ class binggenerate:
         logging.debug(f"it took {int(difference.total_seconds()//60):02}:{int(difference.total_seconds()%60):02} to get result")
         logging.info("got result, gonna download now")
         filenames = await self.download_images(result)
-        logging.info("downloaded!: " + str(filenames))
+        logging.info("downloaded!: " + ", ".join(filenames))
         return filenames
         
 
@@ -88,7 +88,7 @@ class binggenerate:
         idpattern = r"content=\"https://www\.bing\.com/images/create(.*?)\""
         nexturl = "https://bing.com/images/create" + re.findall(idpattern, response)[0].replace("amp;", "")
         if "&id=" not in nexturl:
-            raise binggenerate.post_failed(f"Failed to post the prompt to bing! Check authentication or if you aren't already generating 3 things or check if the prompt is allowed.")
+            raise self.post_failed(f"Failed to post the prompt to bing! Check authentication or if you aren't already generating 3 things or check if the prompt is allowed.")
         return nexturl
     
     async def check_generation(self) -> (None | list[str]):
@@ -96,9 +96,9 @@ class binggenerate:
             async with session.get(self.url, headers=self.headers, cookies=self.cookies) as r:
                 response = await r.text(encoding="utf-8")
         if "Unsafe image content detected" in response:
-            raise binggenerate.unsafe_image(f"The image is considered unsafe by bing!")
+            raise self.unsafe_image(f"The image is considered unsafe by bing!")
         if "Content warning" in response:
-            raise binggenerate.content_warning(f"The image has a content warning!")
+            raise self.content_warning(f"The image has a content warning!")
         imgurlspattern = r"src=\"(https:\/\/tse\d\.mm\.bing\.net(?:.*?))\""
         matches: list[str] = re.findall(imgurlspattern, response)
         if not matches:
@@ -114,7 +114,7 @@ class binggenerate:
             for index, image in enumerate(imagelist):
                 filename = f"image-{round(datetime.now().timestamp())}-{index}.jpg"
                 async with session.get(image, headers=self.headers) as r:
-                    with tqdm_asyncio(total=int(r.headers.get("content-length")) if r.headers.get("content-length") else None, unit="iB", unit_divisor=True, colour=choice(['red', 'green', 'blue', 'magenta'])) as progress:
+                    with tqdm_asyncio(total=int(r.headers.get("content-length")) if r.headers.get("content-length") else None, unit="iB", unit_scale=True, colour=choice(['red', 'green', 'blue', 'magenta'])) as progress:
                         async with aiofiles.open(filename, 'wb') as f1:
                             while True:
                                 chunk = await r.content.read(1024)
@@ -127,10 +127,24 @@ class binggenerate:
                 
 if __name__ == "__main__":
     from argparse import ArgumentParser
+    import os
     parser = ArgumentParser()
     parser.add_argument("prompt", type=str, help="prompt to use")
-    parser.add_argument("-auth", type=str, help="cookie value (_U) that authenticates requests (mandatory)")
+    parser.add_argument("-auth", type=str, help="cookie value (_U) that authenticates requests (mandatory), location to file or the cookie")
     parser.add_argument("-v", action="store_true", help="verbose")
     args = parser.parse_args()
     loop = asyncio.new_event_loop()
-    loop.run_until_complete(binggenerate().create(args.prompt, args.auth, args.v))
+    if args.auth:
+        if os.path.exists(args.auth):
+            with open(args.auth, 'r') as f1:
+                auth = f1.read()
+        else:
+            auth = args.auth
+    else:
+        try:
+            from env import auth
+        except:
+            print("cant find auth anywhere!\nEither create an env.py file in the same directory as binggenerate.py and put auth = 'cookie' replacing cookie with the _U cookie\nor\nstore the auth in a .txt file and input the file name to -auth 'filename' when running in command prompt\nor\ndirectly input the auth cookie when running in command prompt with -auth 'cookie'")
+            from sys import exit
+            exit(1)
+    loop.run_until_complete(binggenerate().create(args.prompt, auth, args.v))

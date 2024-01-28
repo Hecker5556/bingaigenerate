@@ -57,6 +57,8 @@ async def example():
 
 Luckily there is only one cookie value needed to authenticate your requests, and that's the _U cookie, which you can get from using a cookie viewing extension.
 
+![example](image.png)
+
 Only issue is I haven't tested it enough to know if its a temporary cookie.
 
 ## Extra info about bing
