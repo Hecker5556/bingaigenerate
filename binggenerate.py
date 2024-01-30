@@ -58,9 +58,14 @@ class binggenerate:
         }
         start = datetime.now()
         logging.debug("posting a request")
+        self.secondmethod = False
         nexturl = await self.postrequest()
-        query, id = re.findall(r"https://bing\.com/images/create\?q=(.*?)&rt=\d&FORM=GENCRE&id=(.*?)&nfy=1", nexturl)[0]
-        self.url = f"https://www.bing.com/images/create/async/results/{id}?q={query}"
+        logging.debug(f"is using daily boost: {self.secondmethod}")
+        if not self.secondmethod:
+            query, id = re.findall(r"https://(?:www\.)?bing\.com/images/create\?q=(.*?)&rt=\d&FORM=GENCRE&id=(.*?)(?:&nfy=1)?", nexturl)[0]
+            self.url = f"https://www.bing.com/images/create/async/results/{id}?q={query}"
+        else:
+            self.url = nexturl
         logging.info("successfully posted request!")
         logging.info("waiting for generation to finish...")
         while True:
@@ -85,11 +90,17 @@ class binggenerate:
         async with aiohttp.ClientSession() as session:
             async with session.post('https://www.bing.com/images/create', params=self.params, cookies=self.cookies, headers=self.headers, data=self.data) as r:
                 response = await r.text(encoding="utf-8")
-        idpattern = r"content=\"https://www\.bing\.com/images/create(.*?)\""
-        nexturl = "https://bing.com/images/create" + re.findall(idpattern, response)[0].replace("amp;", "")
-        if "&id=" not in nexturl:
-            raise self.post_failed(f"Failed to post the prompt to bing! Check authentication or if you aren't already generating 3 things or check if the prompt is allowed.")
-        return nexturl
+            idpattern = r"content=\"https://www\.bing\.com/images/create(.*?)\""
+            nexturl = "https://bing.com/images/create" + re.findall(idpattern, response)[0].replace("amp;", "")
+            if "&id=" not in nexturl:
+                self.params['rt'] = '4'
+                async with session.post('https://www.bing.com/images/create', params=self.params, cookies=self.cookies, headers=self.headers, data=self.data) as r:
+                    response = await r.text(encoding="utf-8")
+                with open("response.txt", "w", encoding="utf-8") as f1:
+                    f1.write(response)
+                nexturl = "https://bing.com" + re.findall(r"data-c=\"(/images/create/async/results/(?:.*?))\"", response)[0].replace("amp;", "")
+                self.secondmethod = True
+            return nexturl
     
     async def check_generation(self) -> (None | list[str]):
         async with aiohttp.ClientSession() as session:
