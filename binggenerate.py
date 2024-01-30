@@ -61,7 +61,7 @@ class binggenerate:
         self.secondmethod = False
         nexturl = await self.postrequest()
         logging.debug(f"is using daily boost: {self.secondmethod}")
-        if not self.secondmethod:
+        if self.secondmethod == False:
             query, id = re.findall(r"https://(?:www\.)?bing\.com/images/create\?q=(.*?)&rt=\d&FORM=GENCRE&id=(.*?)(?:&nfy=1)?", nexturl)[0]
             self.url = f"https://www.bing.com/images/create/async/results/{id}?q={query}"
         else:
@@ -98,8 +98,12 @@ class binggenerate:
                     response = await r.text(encoding="utf-8")
                 with open("response.txt", "w", encoding="utf-8") as f1:
                     f1.write(response)
-                nexturl = "https://bing.com" + re.findall(r"data-c=\"(/images/create/async/results/(?:.*?))\"", response)[0].replace("amp;", "")
-                self.secondmethod = True
+                match = re.findall(r"data-c=\"(/images/create/async/results/(?:.*?))\"", response)
+                if match:
+                    nexturl = "https://bing.com" + match[0].replace("amp;", "")
+                    self.secondmethod = True
+                else:
+                    raise self.post_failed("failed to post a request! check prompt or cookie validity")
             return nexturl
     
     async def check_generation(self) -> (None | list[str]):
