@@ -62,7 +62,7 @@ class binggenerate:
         nexturl = await self.postrequest()
         logging.debug(f"is using daily boost: {self.secondmethod}")
         if self.secondmethod == False:
-            query, id = re.findall(r"https://(?:www\.)?bing\.com/images/create\?q=(.*?)&rt=\d&FORM=GENCRE&id=(.*?)(?:&nfy=1)?", nexturl)[0]
+            query, id = re.findall(r"https://(?:www\.)?bing\.com/images/create\?q=(.*?)&rt=\d&FORM=GENCRE&id=(.*?)(?:&nfy=1)?$", nexturl)[0]
             self.url = f"https://www.bing.com/images/create/async/results/{id}?q={query}"
         else:
             self.url = nexturl
