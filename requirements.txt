@@ -1,3 +1,4 @@
 aiofiles
 aiohttp
 tqdm
+aiohttp_socks

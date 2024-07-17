@@ -2,6 +2,7 @@ import aiofiles, aiohttp, re, asyncio, logging
 from datetime import datetime
 from tqdm.asyncio import tqdm_asyncio
 from random import choice
+from aiohttp_socks import ProxyConnector
 
 class binggenerate:
 
@@ -16,8 +17,9 @@ class binggenerate:
     class content_warning(Exception):
         def __init__(self, *args: object) -> None:
             super().__init__(*args)
-
-    async def create(self, prompt: str, _U: str, verbose: bool = False):
+    def _create_connector(proxy: str = None):
+        return ProxyConnector.from_url(proxy) if proxy and proxy.startswith("sock") else aiohttp.TCPConnector()
+    async def create(self, prompt: str, _U: str, proxy: str = None, verbose: bool = False):
         if verbose:
             logging.basicConfig(level=logging.DEBUG, format="%(levelname)s: %(message)s")
         else:
@@ -56,60 +58,62 @@ class binggenerate:
             'q': prompt,
             'qs': 'ds',
         }
+        self.proxy = proxy if proxy and proxy.startswith("http") else None
         start = datetime.now()
         logging.debug("posting a request")
         self.secondmethod = False
-        nexturl = await self.postrequest()
-        logging.debug(f"is using daily boost: {self.secondmethod}")
-        if self.secondmethod == False:
-            query, id = re.findall(r"https://(?:www\.)?bing\.com/images/create\?q=(.*?)&rt=\d&FORM=GENCRE&id=(.*?)(?:&nfy=1)?$", nexturl)[0]
-            self.url = f"https://www.bing.com/images/create/async/results/{id}?q={query}"
-        else:
-            self.url = nexturl
-        logging.info("successfully posted request!")
-        logging.info("waiting for generation to finish...")
-        while True:
-            result = await self.check_generation()
-            if not result:
-                logging.debug("not ready yet, waiting for 5 seconds...")
-                await asyncio.sleep(5)
-                continue
+        async with aiohttp.ClientSession(connector = self._create_connector(proxy)) as session:
+            self.session = session
+            nexturl = await self.postrequest()
+            logging.debug(f"is using daily boost: {self.secondmethod}")
+            if self.secondmethod == False:
+                query, id = re.findall(r"https://(?:www\.)?bing\.com/images/create\?q=(.*?)&rt=\d&FORM=GENCRE&id=(.*?)(?:&nfy=1)?$", nexturl)[0]
+                self.url = f"https://www.bing.com/images/create/async/results/{id}?q={query}"
             else:
-                logging.debug("got result!")
-                break
-        end = datetime.now()
-        difference = end-start
-        logging.debug(f"it took {int(difference.total_seconds()//60):02}:{int(difference.total_seconds()%60):02} to get result")
-        logging.info("got result, gonna download now")
-        filenames = await self.download_images(result)
-        logging.info("downloaded!: " + ", ".join(filenames))
-        return filenames
+                self.url = nexturl
+            logging.info("successfully posted request!")
+            logging.info("waiting for generation to finish...")
+            while True:
+                result = await self.check_generation()
+                if not result:
+                    logging.debug("not ready yet, waiting for 5 seconds...")
+                    await asyncio.sleep(5)
+                    continue
+                else:
+                    logging.debug("got result!")
+                    break
+            end = datetime.now()
+            difference = end-start
+            logging.debug(f"it took {int(difference.total_seconds()//60):02}:{int(difference.total_seconds()%60):02} to get result")
+            logging.info("got result, gonna download now")
+            filenames = await self.download_images(result)
+            logging.info("downloaded!: " + ", ".join(filenames))
+            return filenames
         
 
     async def postrequest(self):
-        async with aiohttp.ClientSession() as session:
-            async with session.post('https://www.bing.com/images/create', params=self.params, cookies=self.cookies, headers=self.headers, data=self.data) as r:
-                response = await r.text(encoding="utf-8")
+        async with self.session.post('https://www.bing.com/images/create', params=self.params, cookies=self.cookies, headers=self.headers, data=self.data, proxy=self.proxy) as r:
+            response = await r.text(encoding="utf-8")
             idpattern = r"content=\"https://www\.bing\.com/images/create(.*?)\""
             nexturl = "https://bing.com/images/create" + re.findall(idpattern, response)[0].replace("amp;", "")
-            if "&id=" not in nexturl:
-                self.params['rt'] = '4'
-                async with session.post('https://www.bing.com/images/create', params=self.params, cookies=self.cookies, headers=self.headers, data=self.data) as r:
-                    response = await r.text(encoding="utf-8")
-                with open("response.txt", "w", encoding="utf-8") as f1:
-                    f1.write(response)
-                match = re.findall(r"data-c=\"(/images/create/async/results/(?:.*?))\"", response)
-                if match:
-                    nexturl = "https://bing.com" + match[0].replace("amp;", "")
-                    self.secondmethod = True
-                else:
-                    raise self.post_failed("failed to post a request! check prompt or cookie validity")
-            return nexturl
+        if "&id=" not in nexturl:
+            self.params['rt'] = '4'
+            async with self.session.post('https://www.bing.com/images/create', params=self.params, cookies=self.cookies, headers=self.headers, data=self.data, proxy=self.proxy) as r:
+                response = await r.text(encoding="utf-8")
+            with open("response.txt", "w", encoding="utf-8") as f1:
+                f1.write(response)
+            match = re.findall(r"data-c=\"(/images/create/async/results/(?:.*?))\"", response)
+            if match:
+                nexturl = "https://bing.com" + match[0].replace("amp;", "")
+                self.secondmethod = True
+            else:
+                raise self.post_failed("failed to post a request! check prompt or cookie validity")
+        return nexturl
     
     async def check_generation(self) -> (None | list[str]):
-        async with aiohttp.ClientSession() as session:
-            async with session.get(self.url, headers=self.headers, cookies=self.cookies) as r:
-                response = await r.text(encoding="utf-8")
+
+        async with self.session.get(self.url, headers=self.headers, cookies=self.cookies, proxy=self.proxy) as r:
+            response = await r.text(encoding="utf-8")
         if "Unsafe image content detected" in response:
             raise self.unsafe_image(f"The image is considered unsafe by bing!")
         if "Content warning" in response:
@@ -125,11 +129,15 @@ class binggenerate:
     async def download_images(self, imagelist: list[str]) -> list[str]:
         filenames = []
         logging.debug(f"Downloading {len(imagelist)} images")
+        colors = ['red', 'green', 'blue', 'magenta']
+
         async with aiohttp.ClientSession() as session:
             for index, image in enumerate(imagelist):
+                color = choice(colors)
+                colors.pop(colors.index(color))
                 filename = f"image-{round(datetime.now().timestamp())}-{index}.jpg"
                 async with session.get(image, headers=self.headers) as r:
-                    with tqdm_asyncio(total=int(r.headers.get("content-length")) if r.headers.get("content-length") else None, unit="iB", unit_scale=True, colour=choice(['red', 'green', 'blue', 'magenta'])) as progress:
+                    with tqdm_asyncio(total=int(r.headers.get("content-length")) if r.headers.get("content-length") else None, unit="iB", unit_scale=True, colour=color) as progress:
                         async with aiofiles.open(filename, 'wb') as f1:
                             while True:
                                 chunk = await r.content.read(1024)
@@ -146,9 +154,9 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("prompt", type=str, help="prompt to use")
     parser.add_argument("-auth", type=str, help="cookie value (_U) that authenticates requests (mandatory), location to file or the cookie")
+    parser.add_argument("-proxy", type=str, help="https/socks proxy to use in the connection")
     parser.add_argument("-v", action="store_true", help="verbose")
     args = parser.parse_args()
-    loop = asyncio.new_event_loop()
     if args.auth:
         if os.path.exists(args.auth):
             with open(args.auth, 'r') as f1:
@@ -162,4 +170,4 @@ if __name__ == "__main__":
             print("cant find auth anywhere!\nEither create an env.py file in the same directory as binggenerate.py and put auth = 'cookie' replacing cookie with the _U cookie\nor\nstore the auth in a .txt file and input the file name to -auth 'filename' when running in command prompt\nor\ndirectly input the auth cookie when running in command prompt with -auth 'cookie'")
             from sys import exit
             exit(1)
-    loop.run_until_complete(binggenerate().create(args.prompt, auth, args.v))
+    asyncio.run(binggenerate().create(args.prompt, auth, args.v, args.proxy))
