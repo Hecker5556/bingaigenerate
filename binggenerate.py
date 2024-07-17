@@ -17,7 +17,7 @@ class binggenerate:
     class content_warning(Exception):
         def __init__(self, *args: object) -> None:
             super().__init__(*args)
-    def _create_connector(proxy: str = None):
+    def _create_connector(self, proxy: str = None):
         return ProxyConnector.from_url(proxy) if proxy and proxy.startswith("sock") else aiohttp.TCPConnector()
     async def create(self, prompt: str, _U: str, proxy: str = None, verbose: bool = False):
         if verbose:
