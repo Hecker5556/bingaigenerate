@@ -46,7 +46,9 @@ class binggenerate:
             'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
         }
         self.cookies = {
+            'BCP': 'AD=0&AL=0&SM=0',
             '_U': _U,
+            'SRCHHPGUSR': 'SRCHLANG=en&PV=10.0.0&BRW=W&BRH=M&CW=1472&CH=783&SCW=1472&SCH=783&DPR=1.3&UTC=120&DM=1&HV=1726065521&PRVCW=1472&PRVCH=783&THEME=0&WEBTHEME=0&WTS=63861662294',
         }
         self.params = {
             'q': prompt,
@@ -170,4 +172,4 @@ if __name__ == "__main__":
             print("cant find auth anywhere!\nEither create an env.py file in the same directory as binggenerate.py and put auth = 'cookie' replacing cookie with the _U cookie\nor\nstore the auth in a .txt file and input the file name to -auth 'filename' when running in command prompt\nor\ndirectly input the auth cookie when running in command prompt with -auth 'cookie'")
             from sys import exit
             exit(1)
-    asyncio.run(binggenerate().create(args.prompt, auth, args.v, args.proxy))
+    asyncio.run(binggenerate().create(args.prompt, auth, args.proxy, args.v))
