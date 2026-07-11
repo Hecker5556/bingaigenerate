@@ -223,11 +223,11 @@ class binggenerate:
             params = {
                 "FORM": "GENCRE"
             }
-            self.session.cookies.clear("www.bing.com")
-            self.session.cookies.clear(".bing.com")
-            r: Response = await self.session.get(viewImgSetUrl.split("?")[0], params=params, headers=headers, cookies=self.cookies, stream=True)
             while True:
                 try:
+                    self.session.cookies.clear("www.bing.com")
+                    self.session.cookies.clear(".bing.com")
+                    r: Response = await self.session.get(viewImgSetUrl.split("?")[0], params=params, headers=headers, cookies=self.cookies, stream=True)
                     text = await r.atext()
                     dataMatch = await asyncio.to_thread(re.search, r"data-results=\"(.*?)\"", text)
                     result = await asyncio.to_thread(json.loads, unescape((dataMatch).group(1)))
