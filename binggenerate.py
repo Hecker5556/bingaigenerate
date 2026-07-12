@@ -233,6 +233,8 @@ class binggenerate:
                     result = await asyncio.to_thread(json.loads, unescape((dataMatch).group(1)))
                     result['status'] = result['requestStatus']
                     if result['status'] != 2:
+                        logger.info("waiting 2 seconds for full completion")
+                        await asyncio.sleep(2)
                         continue
                     break
                 except:
